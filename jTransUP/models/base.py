@@ -70,7 +70,7 @@ def get_flags():
     gflags.DEFINE_float("l2_lambda", 0, "")  # 1e-5
     gflags.DEFINE_integer("embedding_size", 100, ".")  # 64
     gflags.DEFINE_integer("negtive_samples", 1, ".")  # ？
-    gflags.DEFINE_integer("batch_size", 128, "Minibatch size.")  # 512
+    gflags.DEFINE_integer("batch_size", 1024, "Minibatch size.")  # 512
     gflags.DEFINE_enum("optimizer_type", "Adam", ["Adam", "SGD", "Adagrad", "Rmsprop"], "")  # Adagrad
     gflags.DEFINE_float(
         "learning_rate_decay_when_no_progress",
