@@ -30,7 +30,23 @@ def get_flags():
     gflags.DEFINE_enum(
         "dataset",
         "bandung",
-        ["ml1m", "dbbook2014", "amazon-book", "last-fm", "yelp2018", "gowalla", "foursquare", "bandung"],
+        [
+            "bandung",
+            "beijing",
+            "istanbul",
+            "jakarta",
+            "kuwait_city",
+            "melbourne",
+            "moscow",
+            "new_york",
+            "palembang",
+            "petaling_jaya",
+            "sao_paulo",
+            "shanghai",
+            "sydney",
+            "tangerang",
+            "tokyo",
+        ],
         "including ratings.csv, r2kg.tsv and a kg dictionary containing kg_hop[0-9].dat",
     )
     gflags.DEFINE_bool(
