@@ -120,12 +120,7 @@ def get_flags():
 
 def flag_defaults(FLAGS):
     if not FLAGS.experiment_name:
-        timestamp = str(int(time.time()))
-        FLAGS.experiment_name = "{}-{}-{}".format(
-            FLAGS.dataset,
-            FLAGS.model_type,
-            timestamp,
-        )
+        FLAGS.experiment_name = "{}-{}".format(FLAGS.dataset, FLAGS.model_type)
 
     if not FLAGS.data_path:
         FLAGS.data_path = "./datasets/"
