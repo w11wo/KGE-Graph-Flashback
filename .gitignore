@@ -3,3 +3,4 @@ log/*.log
 log/*.ckpt
 log/
 dataset
+**/__pycache__/

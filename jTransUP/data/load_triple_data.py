@@ -4,13 +4,13 @@ from jTransUP.utils.data import MakeTrainIterator, MakeEvalIterator
 
 
 def loadTriples(filename):
-    with open(filename, 'r', encoding='utf-8') as fin:
+    with open(filename, "r", encoding="utf-8") as fin:
         triple_total = 0
         triple_list = []
         triple_head_dict = {}
         triple_tail_dict = {}
         for line in fin:
-            line_split = line.strip().split('\t')
+            line_split = line.strip().split("\t")
             if len(line_split) != 3:
                 continue
             h_id = int(line_split[0])
@@ -19,7 +19,9 @@ def loadTriples(filename):
 
             triple_list.append((h_id, t_id, r_id))
 
-            tmp_heads = triple_head_dict.get((t_id, r_id), set())  # key是由(tail, relation)组成的二元组,value是head的集合
+            tmp_heads = triple_head_dict.get(
+                (t_id, r_id), set()
+            )  # key是由(tail, relation)组成的二元组,value是head的集合
             tmp_heads.add(h_id)
             triple_head_dict[(t_id, r_id)] = tmp_heads  # {(t, r): {h1,h2,...}}
 
@@ -34,11 +36,11 @@ def loadTriples(filename):
 
 # org-->id
 def loadVocab(filename):
-    with open(filename, 'r', encoding='utf-8') as fin:
+    with open(filename, "r", encoding="utf-8") as fin:
         vocab = {}
         for line in fin:
             # line_split = line.strip().split('\t')
-            line_split = line.strip().split(' ')
+            line_split = line.strip().split(" ")
             if len(line_split) != 2:
                 continue
             # e_id = int(line_split[0])
@@ -54,13 +56,12 @@ def loadVocab(filename):
 def load_data(kg_path, eval_filenames, batch_size, negtive_samples=1, logger=None):
     # each dataset has the /kg/ dictionary
 
-    train_file = os.path.join(kg_path, "train.txt")
+    train_file = os.path.join(kg_path, "new_final_train_triplets.txt")
     eval_files = []
     for file_name in eval_filenames:
         eval_files.append(os.path.join(kg_path, file_name))
 
-    e_map_file = os.path.join(kg_path, "e_map.txt")
-    r_map_file = os.path.join(kg_path, "r_map.txt")
+    e_map_file = os.path.join(kg_path, "entity2id.txt")
     # 三元组数量   元组列表     字典,key:(t, r), value:集合{h1,h2,...}
     train_total, train_list, train_head_dict, train_tail_dict = loadTriples(train_file)
 
@@ -70,13 +71,22 @@ def load_data(kg_path, eval_filenames, batch_size, negtive_samples=1, logger=Non
 
     if logger is not None:
         eval_totals = [str(eval_data[0]) for eval_data in eval_dataset]  # 统计验证集中三元组的个数
-        logger.info("Totally {} train triples, {} eval triples in files: {}!".format(train_total, ",".join(eval_totals),
-                                                                                     ";".join(eval_files)))
+        logger.info(
+            "Totally {} train triples, {} eval triples in files: {}!".format(
+                train_total, ",".join(eval_totals), ";".join(eval_files)
+            )
+        )
 
     # get entity total
     e_map = loadVocab(e_map_file)  # 字典 org_id: mapped_id
     # get relation total
-    r_map = loadVocab(r_map_file)
+    # r_map = loadVocab(r_map_file)
+    r_map = {
+        "interact": 0,
+        "temporal": 1,
+        "spatial": 2,
+        "friend": 3,
+    }
 
     if logger is not None:
         logger.info("successfully load {} entities and {} relations!".format(len(e_map), len(r_map)))
@@ -85,7 +95,7 @@ def load_data(kg_path, eval_filenames, batch_size, negtive_samples=1, logger=Non
 
     # train_total, train_list, train_head_dict, train_tail_dict
     new_eval_datasets = []
-    dt = np.dtype('int,int')
+    dt = np.dtype("int,int")
     for eval_data in eval_dataset:  # train_total, train_list, train_head_dict, train_tail_dict
         tmp_head_iter = MakeEvalIterator(list(eval_data[2].keys()), dt, batch_size)
         tmp_tail_iter = MakeEvalIterator(list(eval_data[3].keys()), dt, batch_size)
@@ -104,9 +114,9 @@ if __name__ == "__main__":
     # i2kg_pairs = loadR2KgMap(i2kg_file)
     # e_set = set([p[1] for p in i2kg_pairs])
 
-    rel_file = os.path.join(data_path + 'kg/', 'relation_filter.dat')
+    rel_file = os.path.join(data_path + "kg/", "relation_filter.dat")
     rel_vocab = set()
-    with open(rel_file, 'r') as fin:
+    with open(rel_file, "r") as fin:
         for line in fin:
             rel_vocab.add(line.strip())
 

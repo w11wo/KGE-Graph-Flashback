@@ -29,8 +29,8 @@ def get_flags():
     )
     gflags.DEFINE_enum(
         "dataset",
-        "foursquare",
-        ["ml1m", "dbbook2014", "amazon-book", "last-fm", "yelp2018", "gowalla", "foursquare"],
+        "bandung",
+        ["ml1m", "dbbook2014", "amazon-book", "last-fm", "yelp2018", "gowalla", "foursquare", "bandung"],
         "including ratings.csv, r2kg.tsv and a kg dictionary containing kg_hop[0-9].dat",
     )
     gflags.DEFINE_bool(
@@ -75,9 +75,9 @@ def get_flags():
     gflags.DEFINE_float("joint_ratio", 0.5, "(0 - 1). The train ratio of recommendation, kg is 1 - joint_ratio.")
 
     gflags.DEFINE_string("experiment_name", None, "")
-    gflags.DEFINE_string("data_path", None, "")  # None "datasets/"
+    gflags.DEFINE_string("data_path", "dataset", "")  # None "datasets/"
     gflags.DEFINE_string("rec_test_files", None, "multiple filenames separated by ':'.")
-    gflags.DEFINE_string("kg_test_files", "test.txt", "multiple filenames separated by ':'.")  # None
+    gflags.DEFINE_string("kg_test_files", "new_final_test_triplets.txt", "multiple filenames separated by ':'.")  # None
     gflags.DEFINE_string("log_path", None, "")  # None "log/"
     gflags.DEFINE_string("version", "scheme2", "")
     gflags.DEFINE_enum("log_level", "debug", ["debug", "info"], "")

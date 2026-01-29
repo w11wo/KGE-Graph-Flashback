@@ -27,8 +27,21 @@ import jTransUP.utils.loss as loss
 FLAGS = gflags.FLAGS
 
 
-def evaluate(FLAGS, model, entity_total, relation_total, eval_head_iter, eval_tail_iter, eval_head_dict, eval_tail_dict,
-             all_head_dicts, all_tail_dicts, logger, eval_descending=True, is_report=False):
+def evaluate(
+    FLAGS,
+    model,
+    entity_total,
+    relation_total,
+    eval_head_iter,
+    eval_tail_iter,
+    eval_head_dict,
+    eval_tail_dict,
+    all_head_dicts,
+    all_tail_dicts,
+    logger,
+    eval_descending=True,
+    is_report=False,
+):
     # Evaluate
     total_batches = len(eval_head_iter) + len(eval_tail_iter)
     # processing bar
@@ -50,8 +63,16 @@ def evaluate(FLAGS, model, entity_total, relation_total, eval_head_iter, eval_ta
         preds = zip(batch_trs, scores.data.cpu().numpy())  # [(t, r): {所有实体h的分数}, ...]
 
         head_results.extend(  # eval_descending=False,从小到大排序, top k在前面
-            evalKGProcess(list(preds), eval_head_dict, all_dicts=all_head_dicts, descending=eval_descending,
-                          num_processes=FLAGS.num_processes, topn=FLAGS.topn, queue_limit=FLAGS.max_queue))
+            evalKGProcess(
+                list(preds),
+                eval_head_dict,
+                all_dicts=all_head_dicts,
+                descending=eval_descending,
+                num_processes=FLAGS.num_processes,
+                topn=FLAGS.topn,
+                queue_limit=FLAGS.max_queue,
+            )
+        )
 
         pbar.update(1)
     # tail prediction evaluation
@@ -66,8 +87,16 @@ def evaluate(FLAGS, model, entity_total, relation_total, eval_head_iter, eval_ta
         preds = zip(batch_hrs, scores.data.cpu().numpy())
 
         tail_results.extend(
-            evalKGProcess(list(preds), eval_tail_dict, all_dicts=all_tail_dicts, descending=eval_descending,
-                          num_processes=FLAGS.num_processes, topn=FLAGS.topn, queue_limit=FLAGS.max_queue))
+            evalKGProcess(
+                list(preds),
+                eval_tail_dict,
+                all_dicts=all_tail_dicts,
+                descending=eval_descending,
+                num_processes=FLAGS.num_processes,
+                topn=FLAGS.topn,
+                queue_limit=FLAGS.max_queue,
+            )
+        )
 
         pbar.update(1)
 
@@ -112,8 +141,9 @@ def evaluate(FLAGS, model, entity_total, relation_total, eval_head_iter, eval_ta
     return avg_hit, avg_mean_rank
 
 
-def train_loop(FLAGS, model, trainer, train_dataset, eval_datasets,
-               entity_total, relation_total, logger, vis=None, is_report=False):
+def train_loop(
+    FLAGS, model, trainer, train_dataset, eval_datasets, entity_total, relation_total, logger, vis=None, is_report=False
+):
     train_iter, train_total, train_list, train_head_dict, train_tail_dict = train_dataset
 
     all_head_dicts = None
@@ -133,7 +163,9 @@ def train_loop(FLAGS, model, trainer, train_dataset, eval_datasets,
     model.train()
     model.enable_grad()
 
-    for _ in range(trainer.step, trainer.epoch_length * 100):  # 训练training_steps个epoch,每个epoch有很多个batch,总共100个epoch
+    for _ in range(
+        trainer.step, trainer.epoch_length * 100
+    ):  # 训练training_steps个epoch,每个epoch有很多个batch,总共100个epoch
 
         # if 0 < FLAGS.early_stopping_steps_to_wait < (trainer.step - trainer.best_step):
         #     logger.info('No improvement after ' +
@@ -144,8 +176,9 @@ def train_loop(FLAGS, model, trainer, train_dataset, eval_datasets,
         #     break
 
         triple_batch = next(train_iter)
-        ph, pt, pr, nh, nt, nr = getTrainTripleBatch(triple_batch, entity_total, all_head_dicts=all_head_dicts,
-                                                     all_tail_dicts=all_tail_dicts)
+        ph, pt, pr, nh, nt, nr = getTrainTripleBatch(
+            triple_batch, entity_total, all_head_dicts=all_head_dicts, all_tail_dicts=all_tail_dicts
+        )
 
         ph_var = to_gpu(V(torch.LongTensor(ph)))
         pt_var = to_gpu(V(torch.LongTensor(pt)))
@@ -193,7 +226,7 @@ def train_loop(FLAGS, model, trainer, train_dataset, eval_datasets,
         if trainer.step % (trainer.epoch_length * 20) == 0:
             if pbar is not None:
                 pbar.close()
-            total_loss /= (trainer.epoch_length * 20)
+            total_loss /= trainer.epoch_length * 20
             logger.info("train loss:{:.4f}!".format(total_loss))
 
             # performances = []
@@ -243,7 +276,7 @@ def train_loop(FLAGS, model, trainer, train_dataset, eval_datasets,
             model.train()
             model.enable_grad()
 
-    trainer.save(trainer.checkpoint_path + '_final')
+    trainer.save(trainer.checkpoint_path + "_final")
 
 
 def run(only_forward=False):
@@ -255,8 +288,7 @@ def run(only_forward=False):
     vis = None
     if FLAGS.has_visualization:
         vis = Visualizer(env=FLAGS.experiment_name, port=FLAGS.visualization_port)
-        vis.log(json.dumps(FLAGS.FlagValuesDict(), indent=4, sort_keys=True),
-                win_name="Parameter")
+        vis.log(json.dumps(FLAGS.FlagValuesDict(), indent=4, sort_keys=True), win_name="Parameter")
 
     # set logger
     log_file = os.path.join(FLAGS.log_path, FLAGS.experiment_name + ".log")
@@ -265,7 +297,7 @@ def run(only_forward=False):
     logger.setLevel(level=log_level)
 
     # Formatter
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     # FileHandler
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
@@ -278,14 +310,14 @@ def run(only_forward=False):
     logger.info("Flag Values:\n" + json.dumps(FLAGS.FlagValuesDict(), indent=4, sort_keys=True))
 
     # load data
-    # kg_path = os.path.join(os.path.join(FLAGS.data_path, FLAGS.dataset), 'kg')
-    kg_path = os.path.join(os.path.join(os.path.join(FLAGS.data_path, FLAGS.dataset), 'kg'), FLAGS.version)
+    kg_path = os.path.join(os.path.join(FLAGS.data_path, FLAGS.dataset), FLAGS.version)
     eval_files = []
     if FLAGS.kg_test_files:
-        eval_files = FLAGS.kg_test_files.split(':')
+        eval_files = FLAGS.kg_test_files.split(":")
     # 三元组数量
-    train_dataset, eval_datasets, e_map, r_map = load_data(kg_path, eval_files, FLAGS.batch_size, logger=logger,
-                                                           negtive_samples=FLAGS.negtive_samples)
+    train_dataset, eval_datasets, e_map, r_map = load_data(
+        kg_path, eval_files, FLAGS.batch_size, logger=logger, negtive_samples=FLAGS.negtive_samples
+    )
     entity_total = max(len(e_map), max(e_map.values()))
     relation_total = max(len(r_map), max(r_map.values()))
 
@@ -322,7 +354,8 @@ def run(only_forward=False):
                 all_tail_dicts,
                 logger,
                 eval_descending=False,
-                is_report=FLAGS.is_report)
+                is_report=FLAGS.is_report,
+            )
     else:
         train_loop(
             FLAGS,
@@ -334,12 +367,13 @@ def run(only_forward=False):
             relation_total,
             logger,
             vis=vis,
-            is_report=False)
+            is_report=False,
+        )
     if vis is not None:
         vis.log("Finish!", win_name="Best Performances")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     get_flags()
 
     # Parse command line flags.
