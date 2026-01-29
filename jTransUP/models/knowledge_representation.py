@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable as V
+from torch.utils.data import Dataset, DataLoader
 
 from jTransUP.models.base import get_flags, flag_defaults, init_model
 from jTransUP.data.load_triple_data import load_data
@@ -25,6 +26,33 @@ from jTransUP.utils.data import getTrainTripleBatch
 import jTransUP.utils.loss as loss
 
 FLAGS = gflags.FLAGS
+
+
+class KGDataset(Dataset):
+    def __init__(self, train_list, entity_total, head_dict, tail_dict):
+        self.train_list = train_list
+        self.entity_total = entity_total
+        self.head_dict = head_dict
+        self.tail_dict = tail_dict
+
+    def __len__(self):
+        return len(self.train_list)
+
+    def __getitem__(self, idx):
+        # Move the negative sampling logic here
+        h, t, r = self.train_list[idx]
+
+        # Negative Head
+        nh = np.random.randint(0, self.entity_total - 1)
+        while nh in self.head_dict.get((t, r), set()):
+            nh = np.random.randint(0, self.entity_total - 1)
+
+        # Negative Tail
+        nt = np.random.randint(0, self.entity_total - 1)
+        while nt in self.tail_dict.get((h, r), set()):
+            nt = np.random.randint(0, self.entity_total - 1)
+
+        return torch.LongTensor([h, t, r, nh, nt, r])  # nr is usually same as r
 
 
 def evaluate(
@@ -144,138 +172,81 @@ def evaluate(
 def train_loop(
     FLAGS, model, trainer, train_dataset, eval_datasets, entity_total, relation_total, logger, vis=None, is_report=False
 ):
+    # 1. Setup Data
     train_iter, train_total, train_list, train_head_dict, train_tail_dict = train_dataset
+    kg_dataset = KGDataset(train_list, entity_total, train_head_dict, train_tail_dict)
 
-    all_head_dicts = None
-    all_tail_dicts = None
-    if FLAGS.filter_wrong_corrupted:
-        all_head_dicts = [train_head_dict] + [tmp_data[4] for tmp_data in eval_datasets]
-        all_tail_dicts = [train_tail_dict] + [tmp_data[5] for tmp_data in eval_datasets]
+    # num_workers=8 is the standard "sweet spot"
+    train_loader = DataLoader(kg_dataset, batch_size=FLAGS.batch_size, shuffle=True, num_workers=8, pin_memory=True)
 
-    # Train.
-    logger.info("Training.")
-
-    # New Training Loop
-    pbar = None  # 这里是先evaluate再train
-    pbar = tqdm(total=trainer.epoch_length * 20)  # 改成先train后evaluate
-    pbar.set_description("Training")
+    total_epochs = 100
+    eval_interval = 20
     total_loss = 0.0
+
+    # Calculate total steps for the entire training run
+    total_steps = len(train_loader) * total_epochs
+    interval_steps = len(train_loader) * eval_interval
+
+    logger.info(f"Starting Training: {total_epochs} epochs total.")
+
+    # One big pbar for the whole process
+    pbar = tqdm(total=total_steps, desc="Overall Training")
+
     model.train()
-    model.enable_grad()
 
-    for _ in range(
-        trainer.step, trainer.epoch_length * 100
-    ):  # 训练training_steps个epoch,每个epoch有很多个batch,总共100个epoch
+    for epoch in range(1, total_epochs + 1):
+        for batch in train_loader:
+            batch = batch.to("cuda" if USE_CUDA else "cpu", non_blocking=True)
+            ph, pt, pr, nh, nt, nr = batch[:, 0], batch[:, 1], batch[:, 2], batch[:, 3], batch[:, 4], batch[:, 5]
 
-        # if 0 < FLAGS.early_stopping_steps_to_wait < (trainer.step - trainer.best_step):
-        #     logger.info('No improvement after ' +
-        #                 str(FLAGS.early_stopping_steps_to_wait) +
-        #                 ' steps. Stopping training.')
-        #     if pbar is not None:
-        #         pbar.close()
-        #     break
+            trainer.optimizer_zero_grad()
 
-        triple_batch = next(train_iter)
-        ph, pt, pr, nh, nt, nr = getTrainTripleBatch(
-            triple_batch, entity_total, all_head_dicts=all_head_dicts, all_tail_dicts=all_tail_dicts
-        )
+            # Forward pass
+            pos_score = model(ph, pt, pr)
+            neg_score = model(nh, nt, nr)
+            losses = loss.marginLoss()(pos_score, neg_score, FLAGS.margin)
 
-        ph_var = to_gpu(V(torch.LongTensor(ph)))
-        pt_var = to_gpu(V(torch.LongTensor(pt)))
-        pr_var = to_gpu(V(torch.LongTensor(pr)))
-        nh_var = to_gpu(V(torch.LongTensor(nh)))
-        nt_var = to_gpu(V(torch.LongTensor(nt)))
-        nr_var = to_gpu(V(torch.LongTensor(nr)))
+            # TransH specific logic & Regularization
+            ent_embeddings = model.ent_embeddings(torch.cat([ph, pt, nh, nt]))
+            rel_embeddings = model.rel_embeddings(torch.cat([pr, nr]))
 
-        trainer.optimizer_zero_grad()
+            if FLAGS.model_type == "transh":
+                norm_embeddings = model.norm_embeddings(torch.cat([pr, nr]))
+                losses += loss.orthogonalLoss(rel_embeddings, norm_embeddings)
 
-        # Run model. output: batch_size * 1
-        pos_score = model(ph_var, pt_var, pr_var)
-        neg_score = model(nh_var, nt_var, nr_var)
+            losses = losses + loss.normLoss(ent_embeddings) + loss.normLoss(rel_embeddings)
 
-        # Calculate loss.
-        # losses = nn.MarginRankingLoss(margin=FLAGS.margin).forward(pos_score, neg_score, to_gpu(torch.autograd.Variable(torch.FloatTensor([trainer.model_target]*len(ph)))))
+            # Backward & Step
+            losses.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), FLAGS.clipping_max_value)
+            trainer.optimizer_step()
 
-        losses = loss.marginLoss()(pos_score, neg_score, FLAGS.margin)
+            batch_loss = losses.item()
+            total_loss += batch_loss
 
-        ent_embeddings = model.ent_embeddings(torch.cat([ph_var, pt_var, nh_var, nt_var]))
-        rel_embeddings = model.rel_embeddings(torch.cat([pr_var, nr_var]))
+            # Update pbar stats
+            pbar.update(1)
+            pbar.set_description(f"Epoch {epoch}/{total_epochs}")
+            pbar.set_postfix({"batch_loss": f"{batch_loss:.4f}"})
 
-        if FLAGS.model_type == "transh":
-            norm_embeddings = model.norm_embeddings(torch.cat([pr_var, nr_var]))
-            losses += loss.orthogonalLoss(rel_embeddings, norm_embeddings)
+        if epoch % eval_interval == 0:
+            # Calculate average loss over the 20-epoch interval
+            avg_interval_loss = total_loss / interval_steps
 
-        losses = losses + loss.normLoss(ent_embeddings) + loss.normLoss(rel_embeddings)
+            # Use pbar.write to avoid messing up the progress bar visual
+            pbar.write(f"==> Epoch {epoch} complete. Avg Interval Loss: {avg_interval_loss:.4f}")
 
-        # Backward pass.
-        losses.backward()
-
-        # for param in model.parameters():
-        #     print(param.grad.data.sum())
-
-        # Hard Gradient Clipping
-        nn.utils.clip_grad_norm([param for name, param in model.named_parameters()], FLAGS.clipping_max_value)
-
-        # Gradient descent step.
-        trainer.optimizer_step()
-        # total_loss += losses.data[0]
-        total_loss += losses.data.item()
-        # print('total loss: ', total_loss)
-        pbar.update(1)
-
-        if trainer.step % (trainer.epoch_length * 20) == 0:
-            if pbar is not None:
-                pbar.close()
-            total_loss /= trainer.epoch_length * 20
-            logger.info("train loss:{:.4f}!".format(total_loss))
-
-            # performances = []
-            # for i, eval_data in enumerate(eval_datasets):
-            #     eval_head_dicts = None
-            #     eval_tail_dicts = None
-            #     if FLAGS.filter_wrong_corrupted:
-            #         eval_head_dicts = [train_head_dict] + [tmp_data[4] for j, tmp_data in enumerate(eval_datasets) if
-            #                                                j != i]
-            #         eval_tail_dicts = [train_tail_dict] + [tmp_data[5] for j, tmp_data in enumerate(eval_datasets) if
-            #                                                j != i]
-            #
-            #     performances.append(
-            #         evaluate(FLAGS, model, entity_total, relation_total, eval_data[0], eval_data[1], eval_data[4],
-            #                  eval_data[5], eval_head_dicts, eval_tail_dicts, logger, eval_descending=False,
-            #                  is_report=is_report))
-
-            # if trainer.step > 0 and len(performances) > 0:
-            #
-            #     is_best = trainer.new_performance(performances[0], performances)
-            #     # visualization
-            #     if vis is not None:
-            #         vis.plot_many_stack({'KG Train Loss': total_loss},
-            #                             win_name="Loss Curve")
-            #         hit_vis_dict = {}
-            #         meanrank_vis_dict = {}
-            #         for i, performance in enumerate(performances):
-            #             hit_vis_dict['KG Eval {} Hit'.format(i)] = performance[0]
-            #             meanrank_vis_dict['KG Eval {} MeanRank'.format(i)] = performance[1]
-            #
-            #         if is_best:
-            #             log_str = ["Best performances in {} step!".format(trainer.best_step)]
-            #             log_str += ["{} : {}.".format(s, "%.5f" % hit_vis_dict[s]) for s in hit_vis_dict]
-            #             log_str += ["{} : {}.".format(s, "%.5f" % meanrank_vis_dict[s]) for s in meanrank_vis_dict]
-            #             vis.log("\n".join(log_str), win_name="Best Performances")
-            #
-            #         vis.plot_many_stack(hit_vis_dict, win_name="KG Hit Ratio@{}".format(FLAGS.topn))
-            #
-            #         vis.plot_many_stack(meanrank_vis_dict, win_name="KG MeanRank")
-
+            # Evaluate
             trainer.my_new_performance()
 
-            # set model in training mode
-            pbar = tqdm(total=trainer.epoch_length * 20)
-            pbar.set_description("Training")
+            # Reset interval tracker
             total_loss = 0.0
+
+            # Ensure model returns to training state
             model.train()
             model.enable_grad()
 
+    pbar.close()
     trainer.save(trainer.checkpoint_path + "_final")
 
 
