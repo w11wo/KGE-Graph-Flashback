@@ -4,30 +4,23 @@ import torch.nn.functional as F
 from torch.autograd import Variable as V
 from jTransUP.utils.misc import to_gpu, projection_transR_pytorch, projection_transR_pytorch_batch
 
+
 def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_map=None, e_map=None, new_map=None):
     model_cls = CKE
     return model_cls(
-                L1_flag = FLAGS.L1_flag,
-                embedding_size = FLAGS.embedding_size,
-                user_total = user_total,
-                item_total = item_total,
-                entity_total = entity_total,
-                relation_total = relation_total,
-                i_map=i_map,
-                new_map=new_map
+        L1_flag=FLAGS.L1_flag,
+        embedding_size=FLAGS.embedding_size,
+        user_total=user_total,
+        item_total=item_total,
+        entity_total=entity_total,
+        relation_total=relation_total,
+        i_map=i_map,
+        new_map=new_map,
     )
 
+
 class CKE(nn.Module):
-    def __init__(self,
-                L1_flag,
-                embedding_size,
-                user_total,
-                item_total,
-                entity_total,
-                relation_total,
-                i_map,
-                new_map
-                ):
+    def __init__(self, L1_flag, embedding_size, user_total, item_total, entity_total, relation_total, i_map, new_map):
         super(CKE, self).__init__()
         self.L1_flag = L1_flag
         self.embedding_size = embedding_size
@@ -61,28 +54,30 @@ class CKE(nn.Module):
         self.item_embeddings = to_gpu(self.item_embeddings)
 
         # transR
-        
-        ent_weight = torch.FloatTensor(self.ent_total-1, self.embedding_size)
+
+        ent_weight = torch.FloatTensor(self.ent_total - 1, self.embedding_size)
         rel_weight = torch.FloatTensor(self.rel_total, self.embedding_size)
         proj_weight = torch.FloatTensor(self.rel_total, self.embedding_size * self.embedding_size)
         nn.init.xavier_uniform(ent_weight)
         nn.init.xavier_uniform(rel_weight)
 
         norm_ent_weight = F.normalize(ent_weight, p=2, dim=1)
-        
+
         if self.is_pretrained:
             nn.init.eye(proj_weight)
             proj_weight = proj_weight.view(-1).expand(self.relation_total, -1)
         else:
             nn.init.xavier_uniform(proj_weight)
-            
+
         # init user and item embeddings
-        self.ent_embeddings = nn.Embedding(self.ent_total, self.embedding_size, padding_idx=self.ent_total-1)
+        self.ent_embeddings = nn.Embedding(self.ent_total, self.embedding_size, padding_idx=self.ent_total - 1)
 
         self.rel_embeddings = nn.Embedding(self.rel_total, self.embedding_size)
         self.proj_embeddings = nn.Embedding(self.rel_total, self.embedding_size * self.embedding_size)
 
-        self.ent_embeddings.weight = nn.Parameter(torch.cat([norm_ent_weight, torch.zeros(1, self.embedding_size)], dim=0))
+        self.ent_embeddings.weight = nn.Parameter(
+            torch.cat([norm_ent_weight, torch.zeros(1, self.embedding_size)], dim=0)
+        )
         self.rel_embeddings.weight = nn.Parameter(rel_weight)
         self.proj_embeddings.weight = nn.Parameter(proj_weight)
 
@@ -97,7 +92,7 @@ class CKE(nn.Module):
         self.ent_embeddings = to_gpu(self.ent_embeddings)
         self.rel_embeddings = to_gpu(self.rel_embeddings)
         self.proj_embeddings = to_gpu(self.proj_embeddings)
-    
+
     def paddingItems(self, i_ids, pad_index):
         padded_e_ids = []
         for i_id in i_ids:
@@ -107,11 +102,11 @@ class CKE(nn.Module):
         return padded_e_ids
 
     def forward(self, ratings, triples, is_rec=True):
-        
+
         if is_rec and ratings is not None:
             u_ids, i_ids = ratings
 
-            e_ids = self.paddingItems(i_ids.data, self.ent_total-1)
+            e_ids = self.paddingItems(i_ids.data, self.ent_total - 1)
             e_var = to_gpu(V(torch.LongTensor(e_ids)))
 
             u_e = self.user_embeddings(u_ids)
@@ -136,13 +131,13 @@ class CKE(nn.Module):
                 score = torch.sum((proj_h_e + r_e - proj_t_e) ** 2, 1)
         else:
             raise NotImplementedError
-        
+
         return score
-    
+
     def evaluateRec(self, u_ids, all_i_ids=None):
         batch_size = len(u_ids)
         i_ids = range(len(self.item_embeddings.weight))
-        e_ids = self.paddingItems(i_ids, self.ent_total-1)
+        e_ids = self.paddingItems(i_ids, self.ent_total - 1)
         e_var = to_gpu(V(torch.LongTensor(e_ids)))
         e_e = self.ent_embeddings(e_var)
 
@@ -151,10 +146,12 @@ class CKE(nn.Module):
         u_e = self.user_embeddings(u_ids)
 
         return torch.matmul(u_e, all_ie_e.t())
-    
+
     def evaluateHead(self, t, r, all_e_ids=None):
         batch_size = len(t)
-        all_e = self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        all_e = (
+            self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        )
         ent_total, dim = all_e.size()
         # batch * dim
         t_e = self.ent_embeddings(t)
@@ -164,7 +161,7 @@ class CKE(nn.Module):
         # batch * dim
         proj_t_e = projection_transR_pytorch(t_e, proj_e)
         c_h_e = proj_t_e - r_e
-        
+
         # batch * entity * dim
         c_h_expand = c_h_e.expand(ent_total, batch_size, dim).permute(1, 0, 2)
 
@@ -173,14 +170,16 @@ class CKE(nn.Module):
 
         # batch * entity
         if self.L1_flag:
-            score = torch.sum(torch.abs(c_h_expand-proj_ent_expand), 2)
+            score = torch.sum(torch.abs(c_h_expand - proj_ent_expand), 2)
         else:
-            score = torch.sum((c_h_expand-proj_ent_expand) ** 2, 2)
+            score = torch.sum((c_h_expand - proj_ent_expand) ** 2, 2)
         return score
-    
+
     def evaluateTail(self, h, r, all_e_ids=None):
         batch_size = len(h)
-        all_e = self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        all_e = (
+            self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        )
         ent_total, dim = all_e.size()
         # batch * dim
         h_e = self.ent_embeddings(h)
@@ -190,7 +189,7 @@ class CKE(nn.Module):
         # batch * dim
         proj_h_e = projection_transR_pytorch(h_e, proj_e)
         c_t_e = proj_h_e + r_e
-        
+
         # batch * entity * dim
         c_t_expand = c_t_e.expand(ent_total, batch_size, dim).permute(1, 0, 2)
 
@@ -199,15 +198,15 @@ class CKE(nn.Module):
 
         # batch * entity
         if self.L1_flag:
-            score = torch.sum(torch.abs(c_t_expand-proj_ent_expand), 2)
+            score = torch.sum(torch.abs(c_t_expand - proj_ent_expand), 2)
         else:
-            score = torch.sum((c_t_expand-proj_ent_expand) ** 2, 2)
+            score = torch.sum((c_t_expand - proj_ent_expand) ** 2, 2)
         return score
 
     def disable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=False
-    
+            param.requires_grad = False
+
     def enable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=True
+            param.requires_grad = True

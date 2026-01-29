@@ -20,23 +20,24 @@ def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_m
         i_map=i_map,
         new_map=new_map,
         isShare=FLAGS.share_embeddings,
-        use_st_gumbel=FLAGS.use_st_gumbel
+        use_st_gumbel=FLAGS.use_st_gumbel,
     )
 
 
 class jTransUPModel(nn.Module):
-    def __init__(self,
-                 L1_flag,
-                 embedding_size,
-                 user_total,
-                 item_total,
-                 entity_total,
-                 relation_total,
-                 i_map,
-                 new_map,
-                 isShare,
-                 use_st_gumbel
-                 ):
+    def __init__(
+        self,
+        L1_flag,
+        embedding_size,
+        user_total,
+        item_total,
+        entity_total,
+        relation_total,
+        i_map,
+        new_map,
+        isShare,
+        use_st_gumbel,
+    ):
         super(jTransUPModel, self).__init__()
         self.L1_flag = L1_flag
         self.is_share = isShare
@@ -100,7 +101,8 @@ class jTransUPModel(nn.Module):
         self.norm_embeddings = nn.Embedding(self.rel_total, self.embedding_size)
 
         self.ent_embeddings.weight = nn.Parameter(
-            torch.cat([norm_ent_weight, torch.zeros(1, self.embedding_size)], dim=0))
+            torch.cat([norm_ent_weight, torch.zeros(1, self.embedding_size)], dim=0)
+        )
         self.rel_embeddings.weight = nn.Parameter(rel_weight)
         self.norm_embeddings.weight = nn.Parameter(norm_weight)
 
@@ -165,12 +167,13 @@ class jTransUPModel(nn.Module):
 
     def evaluateRec(self, u_ids, all_i_ids=None):
         batch_size = len(u_ids)
-        all_i = self.item_embeddings(
-            all_i_ids) if all_i_ids is not None and self.is_share else self.item_embeddings.weight
+        all_i = (
+            self.item_embeddings(all_i_ids) if all_i_ids is not None and self.is_share else self.item_embeddings.weight
+        )
         item_total, dim = all_i.size()
 
         u = self.user_embeddings(u_ids)
-        # expand u and i to pair wise match, batch * item * dim 
+        # expand u and i to pair wise match, batch * item * dim
         u_e = u.expand(item_total, batch_size, dim).permute(1, 0, 2)
 
         i_e = all_i.expand(batch_size, item_total, dim)
@@ -196,8 +199,9 @@ class jTransUPModel(nn.Module):
 
     def evaluateHead(self, t, r, all_e_ids=None):
         batch_size = len(t)
-        all_e = self.ent_embeddings(
-            all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        all_e = (
+            self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        )
         ent_total, dim = all_e.size()
         # batch * dim
         t_e = self.ent_embeddings(t)
@@ -225,8 +229,9 @@ class jTransUPModel(nn.Module):
 
     def evaluateTail(self, h, r, all_e_ids=None):
         batch_size = len(h)
-        all_e = self.ent_embeddings(
-            all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        all_e = (
+            self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        )
         ent_total, dim = all_e.size()
         # batch * dim
         h_e = self.ent_embeddings(h)
@@ -281,8 +286,7 @@ class jTransUPModel(nn.Module):
         new_shape = torch.Size([i for i in old_shape] + [num_classes])
         indices = indices.unsqueeze(len(old_shape))
 
-        one_hot = V(indices.data.new(new_shape).zero_()
-                    .scatter_(len(old_shape), indices.data, 1))
+        one_hot = V(indices.data.new(new_shape).zero_().scatter_(len(old_shape), indices.data, 1))
         return one_hot
 
     def masked_softmax(self, logits):
@@ -313,9 +317,7 @@ class jTransUPModel(nn.Module):
         y = logits + gumbel_noise
         y = self.masked_softmax(logits=y / temperature)
         y_argmax = y.max(len(y.shape) - 1)[1]
-        y_hard = self.convert_to_one_hot(
-            indices=y_argmax,
-            num_classes=y.size(len(y.shape) - 1)).float()
+        y_hard = self.convert_to_one_hot(indices=y_argmax, num_classes=y.size(len(y.shape) - 1)).float()
         y = (y_hard - y).detach() + y
         return y
 

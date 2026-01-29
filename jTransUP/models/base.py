@@ -21,15 +21,21 @@ import jTransUP.models.CFKG as cfkg
 
 
 def get_flags():
-    gflags.DEFINE_enum("model_type", "transe", ["transup", "bprmf", "fm",
-                                                "transe", "transh", "transr", "transd",
-                                                "cfkg", "cke", "cofm", "jtransup"], "")
-    gflags.DEFINE_enum("dataset", "foursquare", ["ml1m", "dbbook2014", "amazon-book", "last-fm", "yelp2018", 'gowalla', 'foursquare'],
-                       "including ratings.csv, r2kg.tsv and a kg dictionary containing kg_hop[0-9].dat")
+    gflags.DEFINE_enum(
+        "model_type",
+        "transe",
+        ["transup", "bprmf", "fm", "transe", "transh", "transr", "transd", "cfkg", "cke", "cofm", "jtransup"],
+        "",
+    )
+    gflags.DEFINE_enum(
+        "dataset",
+        "foursquare",
+        ["ml1m", "dbbook2014", "amazon-book", "last-fm", "yelp2018", "gowalla", "foursquare"],
+        "including ratings.csv, r2kg.tsv and a kg dictionary containing kg_hop[0-9].dat",
+    )
     gflags.DEFINE_bool(
-        "filter_wrong_corrupted",
-        False,
-        "If set to True, filter test samples from train and validations.")
+        "filter_wrong_corrupted", False, "If set to True, filter test samples from train and validations."
+    )
     gflags.DEFINE_bool("share_embeddings", False, "")
     gflags.DEFINE_bool("use_st_gumbel", False, "")
     gflags.DEFINE_integer("max_queue", 10, ".")
@@ -41,31 +47,25 @@ def get_flags():
     gflags.DEFINE_integer(
         "early_stopping_steps_to_wait",
         45750,  # 70000  # 45750: 5个epoch不下降则停止训练
-        "How many times will lr decrease? If set to 0, it remains constant.")
-    gflags.DEFINE_bool(
-        "L1_flag",
-        True,  # False
-        "If set to True, use L1 distance as dissimilarity; else, use L2.")
-    gflags.DEFINE_bool(
-        "is_report",
-        False,
-        "If set to True, use L1 distance as dissimilarity; else, use L2.")
+        "How many times will lr decrease? If set to 0, it remains constant.",
+    )
+    gflags.DEFINE_bool("L1_flag", True, "If set to True, use L1 distance as dissimilarity; else, use L2.")  # False
+    gflags.DEFINE_bool("is_report", False, "If set to True, use L1 distance as dissimilarity; else, use L2.")
     gflags.DEFINE_float("l2_lambda", 0, "")  # 1e-5
     gflags.DEFINE_integer("embedding_size", 100, ".")  # 64
     gflags.DEFINE_integer("negtive_samples", 1, ".")  # ？
     gflags.DEFINE_integer("batch_size", 128, "Minibatch size.")  # 512
     gflags.DEFINE_enum("optimizer_type", "Adam", ["Adam", "SGD", "Adagrad", "Rmsprop"], "")  # Adagrad
-    gflags.DEFINE_float("learning_rate_decay_when_no_progress", 0.5,
-                        "Used in optimizer. Decay the LR by this much every epoch steps if a new best has not been set in the last epoch.")
+    gflags.DEFINE_float(
+        "learning_rate_decay_when_no_progress",
+        0.5,
+        "Used in optimizer. Decay the LR by this much every epoch steps if a new best has not been set in the last epoch.",
+    )
 
     gflags.DEFINE_integer(
-        "eval_interval_steps",
-        9150,  # 14000  改成每10*2轮评估一次
-        "Evaluate at this interval in each epoch.")
-    gflags.DEFINE_integer(
-        "training_steps",
-        915000,  # 1400000
-        "Stop training after this point.")
+        "eval_interval_steps", 9150, "Evaluate at this interval in each epoch."  # 14000  改成每10*2轮评估一次
+    )
+    gflags.DEFINE_integer("training_steps", 915000, "Stop training after this point.")  # 1400000
     gflags.DEFINE_float("clipping_max_value", 5.0, "")
     gflags.DEFINE_float("margin", 1.0, "Used in margin loss.")
     gflags.DEFINE_float("momentum", 0.9, "The momentum of the optimizer.")
@@ -82,25 +82,23 @@ def get_flags():
     gflags.DEFINE_string("version", "scheme2", "")
     gflags.DEFINE_enum("log_level", "debug", ["debug", "info"], "")
 
+    gflags.DEFINE_string("ckpt_path", None, "Where to save/load checkpoints. If not set, the same as log_path")
 
     gflags.DEFINE_string(
-        "ckpt_path", None, "Where to save/load checkpoints. If not set, the same as log_path")
+        "load_ckpt_file",
+        None,  # None 'gowalla-transr-1638028555.ckpt'
+        "Where to load pretrained checkpoints under log path. multiple filenames separated by ':'.",
+    )
 
-    gflags.DEFINE_string(
-        "load_ckpt_file", None,  # None 'gowalla-transr-1638028555.ckpt'
-        "Where to load pretrained checkpoints under log path. multiple filenames separated by ':'.")
-
-    gflags.DEFINE_boolean(
-        "has_visualization",
-        False,
-        "if set True, use visdom for visualization.")
+    gflags.DEFINE_boolean("has_visualization", False, "if set True, use visdom for visualization.")
     gflags.DEFINE_integer("visualization_port", 8097, "")
     # todo: only eval when no train.dat when load data
     gflags.DEFINE_boolean(
         "eval_only_mode",
         False,
         "If set, a checkpoint is loaded and a forward pass is done to get the predicted candidates."
-        "Requirements: Must specify load_experiment_name.")
+        "Requirements: Must specify load_experiment_name.",
+    )
     gflags.DEFINE_string("load_experiment_name", None, "")
 
 
@@ -125,22 +123,15 @@ def flag_defaults(FLAGS):
     if FLAGS.seed != 0:
         torch.manual_seed(FLAGS.seed)
 
-    if FLAGS.model_type in ['cke', 'jtransup']:
+    if FLAGS.model_type in ["cke", "jtransup"]:
         FLAGS.share_embeddings = False
-    elif FLAGS.model_type == 'cfkg':
+    elif FLAGS.model_type == "cfkg":
         FLAGS.share_embeddings = True
 
 
 def init_model(
-        FLAGS,
-        user_total,
-        item_total,
-        entity_total,
-        relation_total,
-        logger,
-        i_map=None,
-        e_map=None,
-        new_map=None):
+    FLAGS, user_total, item_total, entity_total, relation_total, logger, i_map=None, e_map=None, new_map=None
+):
     # Choose model.
     logger.info("Building model.")
     if FLAGS.model_type == "transup":
@@ -168,14 +159,14 @@ def init_model(
     else:
         raise NotImplementedError
 
-    model = build_model(FLAGS, user_total, item_total, entity_total, relation_total,
-                        i_map=i_map, e_map=e_map, new_map=new_map)
+    model = build_model(
+        FLAGS, user_total, item_total, entity_total, relation_total, i_map=i_map, e_map=e_map, new_map=new_map
+    )
 
     # Print model size.
     logger.info("Architecture: {}".format(model))
 
-    total_params = sum([reduce(lambda x, y: x * y, w.size(), 1.0)
-                        for w in model.parameters()])
+    total_params = sum([reduce(lambda x, y: x * y, w.size(), 1.0) for w in model.parameters()])
     logger.info("Total params: {}".format(total_params))
 
     return model

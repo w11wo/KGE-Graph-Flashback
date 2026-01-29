@@ -29,7 +29,7 @@ class ModelTrainer(object):
         self.epoch_length = epoch_length  # 一个训练epoch有这么多个batch_size
         self.model_target = get_model_target(FLAGS.model_type)
 
-        self.logger.info('One epoch is ' + str(self.epoch_length) + ' steps.')
+        self.logger.info("One epoch is " + str(self.epoch_length) + " steps.")
 
         self.parameters = [param for name, param in model.named_parameters()]
         self.optimizer_type = FLAGS.optimizer_type
@@ -59,7 +59,9 @@ class ModelTrainer(object):
             self.load(FLAGS.load_experiment_name, cpu=not USE_CUDA)
             self.logger.info(
                 "Resuming at step: {} with best dev performance: {} and test performance : {}.".format(
-                    self.best_step, self.best_dev_performance, self.best_performances))
+                    self.best_step, self.best_dev_performance, self.best_performances
+                )
+            )
 
     def reset(self):
         self.step = 0
@@ -69,17 +71,17 @@ class ModelTrainer(object):
         self.learning_rate = learning_rate
 
         if self.optimizer_type == "Adam":
-            self.optimizer = optim.Adam(self.parameters, lr=learning_rate,
-                                        weight_decay=self.l2_lambda)
+            self.optimizer = optim.Adam(self.parameters, lr=learning_rate, weight_decay=self.l2_lambda)
         elif self.optimizer_type == "SGD":
-            self.optimizer = optim.SGD(self.parameters, lr=learning_rate,
-                                       weight_decay=self.l2_lambda, momentum=self.momentum)
+            self.optimizer = optim.SGD(
+                self.parameters, lr=learning_rate, weight_decay=self.l2_lambda, momentum=self.momentum
+            )
         elif self.optimizer_type == "Adagrad":
-            self.optimizer = optim.Adagrad(self.parameters, lr=learning_rate,
-                                           weight_decay=self.l2_lambda)
+            self.optimizer = optim.Adagrad(self.parameters, lr=learning_rate, weight_decay=self.l2_lambda)
         elif self.optimizer_type == "Rmsprop":
-            self.optimizer = optim.RMSprop(self.parameters, lr=learning_rate,
-                                           weight_decay=self.l2_lambda, momentum=self.momentum)
+            self.optimizer = optim.RMSprop(
+                self.parameters, lr=learning_rate, weight_decay=self.l2_lambda, momentum=self.momentum
+            )
 
     def optimizer_step(self):
         self.optimizer.step()
@@ -93,7 +95,7 @@ class ModelTrainer(object):
         self.save(self.checkpoint_path)
 
         if self.learning_rate_decay_when_no_progress != 1.0:
-            self.logger.info('Lowering learning rate every 20 epochs.')
+            self.logger.info("Lowering learning rate every 20 epochs.")
             self.optimizer_reset(self.learning_rate * self.learning_rate_decay_when_no_progress)
 
     def new_performance(self, dev_performance, performances):
@@ -115,7 +117,7 @@ class ModelTrainer(object):
         #         self.logger.info('No improvement after one epoch. Lowering learning rate.')
         #         self.optimizer_reset(self.learning_rate * self.learning_rate_decay_when_no_progress)
         if self.learning_rate_decay_when_no_progress != 1.0:
-            self.logger.info('Lowering learning rate every 20 epochs.')
+            self.logger.info("Lowering learning rate every 20 epochs.")
             self.optimizer_reset(self.learning_rate * self.learning_rate_decay_when_no_progress)
         return is_best
 
@@ -130,11 +132,11 @@ class ModelTrainer(object):
 
         # Always sends Tensors to CPU.
         save_dict = {
-            'step': self.step,
-            'best_step': self.best_step,
-            'best_dev_performance': self.best_dev_performance,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict()
+            "step": self.step,
+            "best_step": self.best_step,
+            "best_dev_performance": self.best_dev_performance,
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
         }
         torch.save(save_dict, filename)
 
@@ -145,18 +147,17 @@ class ModelTrainer(object):
     def load(self, filename, cpu=False):
         if cpu:
             # Load GPU-based checkpoints on CPU
-            checkpoint = torch.load(
-                filename, map_location=lambda storage, loc: storage)
+            checkpoint = torch.load(filename, map_location=lambda storage, loc: storage)
         else:
             checkpoint = torch.load(filename)
-        model_state_dict = checkpoint['model_state_dict']
+        model_state_dict = checkpoint["model_state_dict"]
 
         self.model.load_state_dict(model_state_dict, strict=False)
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-        self.step = checkpoint['step']
-        self.best_step = checkpoint['best_step']
-        self.best_dev_performance = checkpoint['best_dev_performance']
+        self.step = checkpoint["step"]
+        self.best_step = checkpoint["best_step"]
+        self.best_dev_performance = checkpoint["best_dev_performance"]
 
     def loadEmbedding(self, filename, embedding_names, cpu=False, e_remap=None, i_remap=None):
         assert os.path.isfile(filename), "Checkpoint file not found!"
@@ -164,11 +165,10 @@ class ModelTrainer(object):
 
         if cpu:
             # Load GPU-based checkpoints on CPU
-            checkpoint = torch.load(
-                filename, map_location=lambda storage, loc: storage)
+            checkpoint = torch.load(filename, map_location=lambda storage, loc: storage)
         else:
             checkpoint = torch.load(filename)
-        old_model_state_dict = checkpoint['model_state_dict']
+        old_model_state_dict = checkpoint["model_state_dict"]
 
         model_dict = self.model.state_dict()
 
@@ -178,55 +178,65 @@ class ModelTrainer(object):
         model_dict.update(pretrained_dict)
 
         # for cke load
-        if 'ent_embeddings.weight' in old_model_state_dict and 'ent_embeddings.weight' in model_dict and len(
-                old_model_state_dict['ent_embeddings.weight']) + 1 == len(self.model.ent_embeddings.weight.data):
-            loaded_embeddings = old_model_state_dict['ent_embeddings.weight']
-            del (model_dict['ent_embeddings.weight'])
-            self.model.ent_embeddings.weight.data[:len(loaded_embeddings), :] = loaded_embeddings[:, :]
-            self.logger.info('Restored ' + str(len(loaded_embeddings)) + ' entities from checkpoint.')
+        if (
+            "ent_embeddings.weight" in old_model_state_dict
+            and "ent_embeddings.weight" in model_dict
+            and len(old_model_state_dict["ent_embeddings.weight"]) + 1 == len(self.model.ent_embeddings.weight.data)
+        ):
+            loaded_embeddings = old_model_state_dict["ent_embeddings.weight"]
+            del model_dict["ent_embeddings.weight"]
+            self.model.ent_embeddings.weight.data[: len(loaded_embeddings), :] = loaded_embeddings[:, :]
+            self.logger.info("Restored " + str(len(loaded_embeddings)) + " entities from checkpoint.")
 
         # for cfkg load
-        if 'rel_embeddings.weight' in old_model_state_dict and 'rel_embeddings.weight' in model_dict and len(
-                old_model_state_dict['rel_embeddings.weight']) + 1 == len(self.model.rel_embeddings.weight.data):
-            loaded_embeddings = old_model_state_dict['rel_embeddings.weight']
-            del (model_dict['rel_embeddings.weight'])
-            self.model.rel_embeddings.weight.data[:len(loaded_embeddings), :] = loaded_embeddings[:, :]
-            self.logger.info('Restored ' + str(len(loaded_embeddings)) + ' relations from checkpoint.')
+        if (
+            "rel_embeddings.weight" in old_model_state_dict
+            and "rel_embeddings.weight" in model_dict
+            and len(old_model_state_dict["rel_embeddings.weight"]) + 1 == len(self.model.rel_embeddings.weight.data)
+        ):
+            loaded_embeddings = old_model_state_dict["rel_embeddings.weight"]
+            del model_dict["rel_embeddings.weight"]
+            self.model.rel_embeddings.weight.data[: len(loaded_embeddings), :] = loaded_embeddings[:, :]
+            self.logger.info("Restored " + str(len(loaded_embeddings)) + " relations from checkpoint.")
 
         # restore entities
-        if e_remap is not None and 'ent_embeddings.weight' in model_dict and 'ent_embeddings.weight' in embedding_names:
-            loaded_embeddings = model_dict['ent_embeddings.weight']
-            del (model_dict['ent_embeddings.weight'])
+        if e_remap is not None and "ent_embeddings.weight" in model_dict and "ent_embeddings.weight" in embedding_names:
+            loaded_embeddings = model_dict["ent_embeddings.weight"]
+            del model_dict["ent_embeddings.weight"]
 
             count = 0
             for index in e_remap:
                 mapped_index = e_remap[index]
                 self.model.ent_embeddings.weight.data[mapped_index, :] = loaded_embeddings[index, :]
                 count += 1
-            self.logger.info('Restored ' + str(count) + ' entities from checkpoint.')
+            self.logger.info("Restored " + str(count) + " entities from checkpoint.")
 
         # restore entities
-        if i_remap is not None and 'item_embeddings.weight' in model_dict and 'item_embeddings.weight' in embedding_names:
-            loaded_embeddings = model_dict['item_embeddings.weight']
-            del (model_dict['item_embeddings.weight'])
+        if (
+            i_remap is not None
+            and "item_embeddings.weight" in model_dict
+            and "item_embeddings.weight" in embedding_names
+        ):
+            loaded_embeddings = model_dict["item_embeddings.weight"]
+            del model_dict["item_embeddings.weight"]
 
             count = 0
             for index in i_remap:
                 mapped_index = i_remap[index]
                 self.model.item_embeddings.weight.data[mapped_index, :] = loaded_embeddings[index, :]
                 count += 1
-            self.logger.info('Restored ' + str(count) + ' items from checkpoint.')
+            self.logger.info("Restored " + str(count) + " items from checkpoint.")
             # for cofm
-            if 'item_bias.weight' in model_dict and 'item_bias.weight' in pretrained_dict:
-                loaded_embeddings = model_dict['item_bias.weight']
-                del (model_dict['item_bias.weight'])
+            if "item_bias.weight" in model_dict and "item_bias.weight" in pretrained_dict:
+                loaded_embeddings = model_dict["item_bias.weight"]
+                del model_dict["item_bias.weight"]
 
                 count = 0
                 for index in i_remap:
                     mapped_index = i_remap[index]
                     self.model.item_bias.weight.data[mapped_index] = loaded_embeddings[index]
                     count += 1
-                self.logger.info('Restored ' + str(count) + ' items bias from checkpoint.')
+                self.logger.info("Restored " + str(count) + " items bias from checkpoint.")
 
         # 3. load the new state dict
         self.model.load_state_dict(model_dict, strict=False)

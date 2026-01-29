@@ -7,7 +7,7 @@ def eval_model_pro(y_gnd, y_pre, K, row_len):
     mat_gnd = np.reshape(y_gnd, (-1, row_len))
     mat_pre = np.reshape(y_pre, (-1, row_len))
 
-    hits, ndcgs= eval_model(mat_gnd, mat_pre, K)
+    hits, ndcgs = eval_model(mat_gnd, mat_pre, K)
     return hits, ndcgs
 
 
@@ -35,7 +35,7 @@ def eval_one_rating(i_gnd, i_pre, K):
     for item, score in enumerate(i_pre):
         map_score[item] = score
 
-    rank_list = heapq.nlargest(K, map_score, key=map_score.get) #return rank index 
+    rank_list = heapq.nlargest(K, map_score, key=map_score.get)  # return rank index
     target_item = i_gnd.index(1)
 
     hit = get_hit_ratio(rank_list, target_item)

@@ -5,7 +5,7 @@ from jTransUP.models.base import get_flags, flag_defaults
 
 FLAGS = gflags.FLAGS
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     get_flags()
     # Parse command line flags.
     FLAGS(sys.argv)

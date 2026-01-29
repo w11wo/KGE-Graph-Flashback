@@ -14,19 +14,12 @@ def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_m
         user_total=user_total,
         item_total=item_total,
         preference_total=FLAGS.num_preferences,
-        use_st_gumbel=FLAGS.use_st_gumbel
+        use_st_gumbel=FLAGS.use_st_gumbel,
     )
 
 
 class TransUPModel(nn.Module):
-    def __init__(self,
-                 L1_flag,
-                 embedding_size,
-                 user_total,
-                 item_total,
-                 preference_total,
-                 use_st_gumbel
-                 ):
+    def __init__(self, L1_flag, embedding_size, user_total, item_total, preference_total, use_st_gumbel):
         super(TransUPModel, self).__init__()
         self.L1_flag = L1_flag
         self.embedding_size = embedding_size
@@ -86,7 +79,7 @@ class TransUPModel(nn.Module):
     def evaluate(self, u_ids):
         batch_size = len(u_ids)
         u = self.user_embeddings(u_ids)
-        # expand u and i to pair wise match, batch * item * dim 
+        # expand u and i to pair wise match, batch * item * dim
         u_e = u.expand(self.item_total, batch_size, self.embedding_size).permute(1, 0, 2)
         i_e = self.item_embeddings.weight.expand(batch_size, self.item_total, self.embedding_size)
 
@@ -132,8 +125,7 @@ class TransUPModel(nn.Module):
         new_shape = torch.Size([i for i in old_shape] + [num_classes])
         indices = indices.unsqueeze(len(old_shape))
 
-        one_hot = V(indices.data.new(new_shape).zero_()
-                    .scatter_(len(old_shape), indices.data, 1))
+        one_hot = V(indices.data.new(new_shape).zero_().scatter_(len(old_shape), indices.data, 1))
         return one_hot
 
     def masked_softmax(self, logits):
@@ -164,9 +156,7 @@ class TransUPModel(nn.Module):
         y = logits + gumbel_noise
         y = self.masked_softmax(logits=y / temperature)
         y_argmax = y.max(len(y.shape) - 1)[1]
-        y_hard = self.convert_to_one_hot(
-            indices=y_argmax,
-            num_classes=y.size(len(y.shape) - 1)).float()
+        y_hard = self.convert_to_one_hot(indices=y_argmax, num_classes=y.size(len(y.shape) - 1)).float()
         y = (y_hard - y).detach() + y
         return y
 

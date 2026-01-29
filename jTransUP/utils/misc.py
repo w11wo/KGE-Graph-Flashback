@@ -39,8 +39,11 @@ def projection_transR_pytorch_batch(original, proj_matrix):  # original: (entity
 
 # batch * dim
 def projection_transD_pytorch_samesize(entity_embedding, entity_projection, relation_projection):
-    return entity_embedding + torch.sum(entity_embedding * entity_projection, dim=len(entity_embedding.size()) - 1,
-                                        keepdim=True) * relation_projection
+    return (
+        entity_embedding
+        + torch.sum(entity_embedding * entity_projection, dim=len(entity_embedding.size()) - 1, keepdim=True)
+        * relation_projection
+    )
 
 
 class Accumulator(object):
@@ -90,7 +93,9 @@ class MyEvalKGProcess(multiprocessing.Process):
         for pred in pred_scores:
             if pred[0] not in eval_dict:  # [(t, r): {所有实体h的分数}]
                 continue
-            gold = eval_dict[pred[0]]  # eval_dict是positive (t, r)或(h, r), 那么gold就是positive 头或尾的集合 {h1,h2,...}
+            gold = eval_dict[
+                pred[0]
+            ]  # eval_dict是positive (t, r)或(h, r), 那么gold就是positive 头或尾的集合 {h1,h2,...}
             # ids to be filtered
             fliter_samples = None
             if all_dicts is not None:
@@ -100,16 +105,24 @@ class MyEvalKGProcess(multiprocessing.Process):
                         fliter_samples.update(dic[pred[0]])
 
             per_scores = pred[1] if not self.descending else -pred[1]  # False, 所以取pred[1],正的score
-            hits, gold_ranks, gold_ids = getKGPerformance(per_scores, gold, fliter_samples=fliter_samples,
-                                                          topn=self.topn)
+            hits, gold_ranks, gold_ids = getKGPerformance(
+                per_scores, gold, fliter_samples=fliter_samples, topn=self.topn
+            )
             self.L.extend(list(zip(hits, gold_ranks, [pred[0]] * len(hits), gold_ids)))
 
 
 # pred_scores: batch * item, [(id, numpy.array), ...], all_dicts:(train_dict, valid_dict, test_dict)
-def evalKGProcess(pred_scores, eval_dict, all_dicts=None, descending=True, num_processes=multiprocessing.cpu_count(),
-                  topn=10, queue_limit=10):
+def evalKGProcess(
+    pred_scores,
+    eval_dict,
+    all_dicts=None,
+    descending=True,
+    num_processes=multiprocessing.cpu_count(),
+    topn=10,
+    queue_limit=10,
+):
     offset = math.ceil(float(len(pred_scores)) / queue_limit)
-    grouped_lists = [pred_scores[i:i + offset] for i in range(0, len(pred_scores), offset)]
+    grouped_lists = [pred_scores[i : i + offset] for i in range(0, len(pred_scores), offset)]
     with multiprocessing.Manager() as manager:
         L = manager.list()
         queue = multiprocessing.JoinableQueue()
@@ -182,7 +195,8 @@ class MyEvalRecProcess(multiprocessing.Process):
 
     def process_data(self, pred_scores, eval_dict, all_dicts=None):
         for pred in pred_scores:
-            if pred[0] not in eval_dict: continue
+            if pred[0] not in eval_dict:
+                continue
             gold = eval_dict[pred[0]]
             # ids to be filtered
             fliter_samples = None
@@ -193,17 +207,25 @@ class MyEvalRecProcess(multiprocessing.Process):
                         fliter_samples.update(dic[pred[0]])
 
             per_scores = pred[1] if not self.descending else -pred[1]
-            f1, p, r, hit, ndcg, top_ids = getRecPerformance(per_scores, gold, fliter_samples=fliter_samples,
-                                                             topn=self.topn)
+            f1, p, r, hit, ndcg, top_ids = getRecPerformance(
+                per_scores, gold, fliter_samples=fliter_samples, topn=self.topn
+            )
 
             self.L.append([f1, p, r, hit, ndcg, (pred[0], top_ids, gold)])
 
 
 # pred_scores: batch * item, [(id, numpy.array), ...], all_dicts:(train_dict, valid_dict, test_dict)
-def evalRecProcess(pred_scores, eval_dict, all_dicts=None, descending=True, num_processes=multiprocessing.cpu_count(),
-                   topn=10, queue_limit=10):
+def evalRecProcess(
+    pred_scores,
+    eval_dict,
+    all_dicts=None,
+    descending=True,
+    num_processes=multiprocessing.cpu_count(),
+    topn=10,
+    queue_limit=10,
+):
     offset = math.ceil(float(len(pred_scores)) / queue_limit)
-    grouped_lists = [pred_scores[i:i + offset] for i in range(0, len(pred_scores), offset)]
+    grouped_lists = [pred_scores[i : i + offset] for i in range(0, len(pred_scores), offset)]
 
     with multiprocessing.Manager() as manager:
         L = manager.list()
@@ -216,7 +238,8 @@ def evalRecProcess(pred_scores, eval_dict, all_dicts=None, descending=True, num_
             worker.start()
 
         for sub_list in grouped_lists:
-            if len(sub_list) == 0: continue
+            if len(sub_list) == 0:
+                continue
             queue.put(sub_list)
         queue.join()
 
@@ -239,13 +262,15 @@ def getRecPerformance(pred, gold, fliter_samples=None, topn=10):
     top_ids = []
     for rank_id in pred_ranks:
         if fliter_samples is not None and rank_id in fliter_samples:
-            if current_rank < topn: topn_to_skip += 1
+            if current_rank < topn:
+                topn_to_skip += 1
             continue
 
         hits.append(1 if rank_id in gold else 0)
         top_ids.append(rank_id)
         current_rank += 1
-        if current_rank >= topn: break
+        if current_rank >= topn:
+            break
 
     # hit number, how many preds in gold
     hits_count = sum(hits)
@@ -268,14 +293,14 @@ def getRecPerformance(pred, gold, fliter_samples=None, topn=10):
 
 
 def recursively_set_device(inp, gpu=USE_CUDA):
-    if hasattr(inp, 'keys'):
+    if hasattr(inp, "keys"):
         for k in list(inp.keys()):
             inp[k] = recursively_set_device(inp[k], USE_CUDA)
     elif isinstance(inp, list):
         return [recursively_set_device(ii, USE_CUDA) for ii in inp]
     elif isinstance(inp, tuple):
         return (recursively_set_device(ii, USE_CUDA) for ii in inp)
-    elif hasattr(inp, 'cpu'):
+    elif hasattr(inp, "cpu"):
         if USE_CUDA:
             inp = inp.cuda()
         else:

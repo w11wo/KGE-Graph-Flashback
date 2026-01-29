@@ -1,9 +1,11 @@
-#-*- coding: UTF-8 -*-
+# -*- coding: UTF-8 -*-
 from __future__ import division
 import numpy as np
 import math
+
 # import pandas as pd
 import time
+
 
 def get_performance(recommend_list, purchased_list):
     """计算F1值。
@@ -23,7 +25,7 @@ def get_performance(recommend_list, purchased_list):
             rank_list.append(1)
         else:
             rank_list.append(0)
-    
+
     k_gold = len(purchased_list)
     f = 0.0
     p = 0.0
@@ -37,6 +39,7 @@ def get_performance(recommend_list, purchased_list):
         ndcg = ndcg_at_k(rank_list, k)
 
     return f, p, r, 1 if hit_number > 0 else 0, ndcg
+
 
 def dcg_at_k(r, k, method=1):
     """Score is discounted cumulative gain (dcg)
@@ -73,8 +76,8 @@ def dcg_at_k(r, k, method=1):
         elif method == 1:
             return np.sum(r / np.log2(np.arange(2, r.size + 2)))
         else:
-            raise ValueError('method must be 0 or 1.')
-    return 0.
+            raise ValueError("method must be 0 or 1.")
+    return 0.0
 
 
 def ndcg_at_k(r, k, method=0):
@@ -106,8 +109,9 @@ def ndcg_at_k(r, k, method=0):
     """
     dcg_max = dcg_at_k(sorted(r, reverse=True), k, method)
     if not dcg_max:
-        return 0.
+        return 0.0
     return dcg_at_k(r, k, method) / dcg_max
+
 
 def evalAll(recommend_list, purchased_list):
     """计算F1和NDCG值。
@@ -126,6 +130,7 @@ def evalAll(recommend_list, purchased_list):
     # f1, prec, rec, hit_ratio, ndcg
     performance = np.array(results).mean(axis=0)
     return performance[0], performance[1], performance[2], performance[3], performance[4]
+
 
 if __name__ == "__main__":
     a = np.random.randint(0, 10, size=(2, 3))

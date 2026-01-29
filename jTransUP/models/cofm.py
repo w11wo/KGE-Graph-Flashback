@@ -7,28 +7,22 @@ from jTransUP.utils.misc import to_gpu, projection_transH_pytorch
 from jTransUP.models.transH import TransHModel
 from jTransUP.models.transUP import TransUPModel
 
+
 def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_map=None, e_map=None, new_map=None):
     model_cls = coFM
     return model_cls(
-                L1_flag = FLAGS.L1_flag,
-                embedding_size = FLAGS.embedding_size,
-                user_total = user_total,
-                item_total = item_total,
-                entity_total = entity_total,
-                relation_total = relation_total,
-                isShare = FLAGS.share_embeddings
+        L1_flag=FLAGS.L1_flag,
+        embedding_size=FLAGS.embedding_size,
+        user_total=user_total,
+        item_total=item_total,
+        entity_total=entity_total,
+        relation_total=relation_total,
+        isShare=FLAGS.share_embeddings,
     )
 
+
 class coFM(nn.Module):
-    def __init__(self,
-                L1_flag,
-                embedding_size,
-                user_total,
-                item_total,
-                entity_total,
-                relation_total,
-                isShare
-                ):
+    def __init__(self, L1_flag, embedding_size, user_total, item_total, entity_total, relation_total, isShare):
         super(coFM, self).__init__()
         self.L1_flag = L1_flag
         self.is_share = isShare
@@ -62,7 +56,7 @@ class coFM(nn.Module):
         self.bias = nn.Parameter(to_gpu(torch.FloatTensor([0.0])))
 
         # trane
-        
+
         rel_weight = torch.FloatTensor(self.rel_total, self.embedding_size)
         nn.init.xavier_uniform(rel_weight)
         self.rel_embeddings = nn.Embedding(self.rel_total, self.embedding_size)
@@ -93,7 +87,7 @@ class coFM(nn.Module):
             self.item_embeddings = to_gpu(self.item_embeddings)
 
     def forward(self, ratings, triples, is_rec=True):
-        
+
         if is_rec and ratings is not None:
             u_ids, i_ids = ratings
             batch_size = len(u_ids)
@@ -110,7 +104,7 @@ class coFM(nn.Module):
             h_e = self.ent_embeddings(h)
             t_e = self.ent_embeddings(t)
             r_e = self.rel_embeddings(r)
-            
+
             # L1 distance
             if self.L1_flag:
                 score = torch.sum(torch.abs(h_e + r_e - t_e), 1)
@@ -119,12 +113,14 @@ class coFM(nn.Module):
                 score = torch.sum((h_e + r_e - t_e) ** 2, 1)
         else:
             raise NotImplementedError
-        
+
         return score
-    
+
     def evaluateRec(self, u_ids, all_i_ids=None):
         batch_size = len(u_ids)
-        all_i = self.item_embeddings(all_i_ids) if all_i_ids is not None and self.is_share else self.item_embeddings.weight
+        all_i = (
+            self.item_embeddings(all_i_ids) if all_i_ids is not None and self.is_share else self.item_embeddings.weight
+        )
         all_i_b = self.item_bias(all_i_ids) if all_i_ids is not None and self.is_share else self.item_bias.weight
         item_total, _ = all_i.size()
 
@@ -137,11 +133,13 @@ class coFM(nn.Module):
         score = self.bias.expand(batch_size, item_total) + u_b_e + i_b_e + torch.matmul(u_e, all_i.t())
 
         return score
-    
+
     def evaluateHead(self, t, r, all_e_ids=None):
         batch_size = len(t)
 
-        all_e = self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        all_e = (
+            self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        )
         ent_total, dim = all_e.size()
 
         # batch * dim
@@ -149,7 +147,7 @@ class coFM(nn.Module):
         r_e = self.rel_embeddings(r)
 
         c_h_e = t_e - r_e
-        
+
         # batch * entity * dim
         c_h_expand = c_h_e.expand(ent_total, batch_size, dim).permute(1, 0, 2)
 
@@ -158,16 +156,18 @@ class coFM(nn.Module):
 
         # batch * entity
         if self.L1_flag:
-            score = torch.sum(torch.abs(c_h_expand-ent_expand), 2)
+            score = torch.sum(torch.abs(c_h_expand - ent_expand), 2)
         else:
-            score = torch.sum((c_h_expand-ent_expand) ** 2, 2)
+            score = torch.sum((c_h_expand - ent_expand) ** 2, 2)
 
         return score
-    
+
     def evaluateTail(self, h, r, all_e_ids=None):
         batch_size = len(h)
 
-        all_e = self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        all_e = (
+            self.ent_embeddings(all_e_ids) if all_e_ids is not None and self.is_share else self.ent_embeddings.weight
+        )
         ent_total, dim = all_e.size()
 
         # batch * dim
@@ -175,7 +175,7 @@ class coFM(nn.Module):
         r_e = self.rel_embeddings(r)
 
         c_t_e = h_e + r_e
-        
+
         # batch * entity * dim
         c_t_expand = c_t_e.expand(ent_total, batch_size, dim).permute(1, 0, 2)
 
@@ -184,15 +184,15 @@ class coFM(nn.Module):
 
         # batch * entity
         if self.L1_flag:
-            score = torch.sum(torch.abs(c_t_expand-ent_expand), 2)
+            score = torch.sum(torch.abs(c_t_expand - ent_expand), 2)
         else:
-            score = torch.sum((c_t_expand-ent_expand) ** 2, 2)
+            score = torch.sum((c_t_expand - ent_expand) ** 2, 2)
         return score
-    
+
     def disable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=False
-    
+            param.requires_grad = False
+
     def enable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=True
+            param.requires_grad = True

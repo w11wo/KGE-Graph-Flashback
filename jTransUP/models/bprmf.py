@@ -5,19 +5,19 @@ from torch.autograd import Variable as V
 
 from jTransUP.utils.misc import to_gpu
 
+
 def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_map=None, e_map=None, new_map=None):
     model_cls = BPRMF
-    return model_cls(
-                FLAGS.embedding_size,
-                user_total,
-                item_total)
+    return model_cls(FLAGS.embedding_size, user_total, item_total)
+
 
 class BPRMF(nn.Module):
-    def __init__(self,
-                embedding_size,
-                user_total,
-                item_total,
-                ):
+    def __init__(
+        self,
+        embedding_size,
+        user_total,
+        item_total,
+    ):
         super(BPRMF, self).__init__()
         self.embedding_size = embedding_size
         self.user_total = user_total
@@ -42,21 +42,20 @@ class BPRMF(nn.Module):
         self.user_embeddings = to_gpu(self.user_embeddings)
         self.item_embeddings = to_gpu(self.item_embeddings)
 
-
     def forward(self, u_ids, i_ids):
         u_e = self.user_embeddings(u_ids)
         i_e = self.item_embeddings(i_ids)
         return torch.bmm(u_e.unsqueeze(1), i_e.unsqueeze(2)).squeeze()
-    
+
     def evaluate(self, u_ids):
         u_e = self.user_embeddings(u_ids)
 
         return torch.matmul(u_e, self.item_embeddings.weight.t())
-    
+
     def disable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=False
-    
+            param.requires_grad = False
+
     def enable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=True
+            param.requires_grad = True

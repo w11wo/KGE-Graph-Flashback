@@ -5,19 +5,19 @@ from torch.autograd import Variable as V
 
 from jTransUP.utils.misc import to_gpu
 
+
 def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_map=None, e_map=None, new_map=None):
     model_cls = FM
-    return model_cls(
-                FLAGS.embedding_size,
-                user_total,
-                item_total)
+    return model_cls(FLAGS.embedding_size, user_total, item_total)
+
 
 class FM(nn.Module):
-    def __init__(self,
-                embedding_size,
-                user_total,
-                item_total,
-                ):
+    def __init__(
+        self,
+        embedding_size,
+        user_total,
+        item_total,
+    ):
         super(FM, self).__init__()
         self.embedding_size = embedding_size
         self.user_total = user_total
@@ -64,7 +64,7 @@ class FM(nn.Module):
 
         y = self.bias.expand(batch_size) + u_b + i_b + torch.bmm(u_e.unsqueeze(1), i_e.unsqueeze(2)).squeeze()
         return y
-    
+
     def evaluate(self, u_ids):
         batch_size = len(u_ids)
         u_e = self.user_embeddings(u_ids)
@@ -74,14 +74,19 @@ class FM(nn.Module):
         u_b_e = u_b.expand(self.item_total, batch_size).permute(1, 0)
         i_b_e = self.item_bias.weight.squeeze().expand(batch_size, self.item_total)
 
-        y_e = self.bias.expand(batch_size, self.item_total) + u_b_e + i_b_e + torch.matmul(u_e, self.item_embeddings.weight.t())
+        y_e = (
+            self.bias.expand(batch_size, self.item_total)
+            + u_b_e
+            + i_b_e
+            + torch.matmul(u_e, self.item_embeddings.weight.t())
+        )
 
         return y_e
-    
+
     def disable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=False
-    
+            param.requires_grad = False
+
     def enable_grad(self):
         for name, param in self.named_parameters():
-            param.requires_grad=True
+            param.requires_grad = True

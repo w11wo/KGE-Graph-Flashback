@@ -9,20 +9,12 @@ from jTransUP.utils.misc import to_gpu, projection_transR_pytorch, projection_tr
 def build_model(FLAGS, user_total, item_total, entity_total, relation_total, i_map=None, e_map=None, new_map=None):
     model_cls = TransRModel
     return model_cls(
-        L1_flag=FLAGS.L1_flag,
-        embedding_size=FLAGS.embedding_size,
-        ent_total=entity_total,
-        rel_total=relation_total
+        L1_flag=FLAGS.L1_flag, embedding_size=FLAGS.embedding_size, ent_total=entity_total, rel_total=relation_total
     )
 
 
 class TransRModel(nn.Module):
-    def __init__(self,
-                 L1_flag,
-                 embedding_size,
-                 ent_total,
-                 rel_total
-                 ):
+    def __init__(self, L1_flag, embedding_size, ent_total, rel_total):
         super(TransRModel, self).__init__()
         self.L1_flag = L1_flag
         self.embedding_size = embedding_size
